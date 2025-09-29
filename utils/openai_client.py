@@ -48,7 +48,10 @@ class OpenAIClient:
             response_format={"type": "json_object"}
         )
         
-        return json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("Empty response from OpenAI API")
+        return json.loads(content)
     
     def suggest_optimizations(self, protocol_text):
         """Suggest optimizations for clinical trial protocol"""
@@ -82,7 +85,10 @@ class OpenAIClient:
             response_format={"type": "json_object"}
         )
         
-        return json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("Empty response from OpenAI API")
+        return json.loads(content)
     
     def extract_eligibility_criteria(self, protocol_text):
         """Extract structured eligibility criteria from protocol text"""
@@ -117,7 +123,10 @@ class OpenAIClient:
             response_format={"type": "json_object"}
         )
         
-        return json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("Empty response from OpenAI API")
+        return json.loads(content)
     
     def generate_patient_profile(self, filters):
         """Generate a synthetic patient profile based on filters"""
@@ -155,4 +164,7 @@ class OpenAIClient:
             response_format={"type": "json_object"}
         )
         
-        return json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("Empty response from OpenAI API")
+        return json.loads(content)
