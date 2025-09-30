@@ -1,251 +1,79 @@
-import json
-import random
-from utils.groq_client import GroqClient
-from modules.synthea_schema import SyntheaSchema
+# modules/patient_generator.py
+import numpy as np
+import pandas as pd
 
-class PatientGenerator:
-    def __init__(self):
-        self.groq_client = GroqClient()
-        self.synthea_schema = SyntheaSchema()
-    
-    def generate_patients(self, count, filters, output_format="json"):
-        """
-        Generate synthetic patient profiles based on specified filters
-        
-        Args:
-            count (int): Number of patients to generate
-            filters (dict): Demographic and clinical filters
-            output_format (str): Output format - 'json', 'csv', or 'synthea compatible'
-            
-        Returns:
-            list: Generated patient profiles
-        """
-        if count <= 0:
-            raise ValueError("Patient count must be greater than 0")
-        
-        if count > 100:
-            raise ValueError("Maximum 100 patients can be generated at once")
-        
-        patients = []
-        
-        for i in range(count):
-            try:
-                # Generate individual patient profile
-                patient = self._generate_single_patient(filters)
-                
-                # Format according to requested output format
-                if output_format == "synthea compatible":
-                    patient = self.synthea_schema.convert_to_synthea_format(patient)
-                elif output_format == "csv":
-                    patient = self._flatten_for_csv(patient)
-                
-                patients.append(patient)
-                
-            except Exception as e:
-                print(f"Warning: Failed to generate patient {i+1}: {str(e)}")
-                continue
-        
-        if not patients:
-            raise Exception("Failed to generate any patients. Please check your filters and try again.")
-        
-        return patients
-    
-    def _generate_single_patient(self, filters):
-        """
-        Generate a single patient profile using AI
-        
-        Args:
-            filters (dict): Patient generation filters
-            
-        Returns:
-            dict: Patient profile
-        """
-        # Validate filters
-        validated_filters = self._validate_filters(filters)
-        
-        # Generate patient using OpenAI
-        patient_profile = self.groq_client.generate_patient_profile(validated_filters)
-        
-        # Add generation metadata
-        patient_profile["generation_metadata"] = {
-            "generated_at": self._get_timestamp(),
-            "filters_applied": validated_filters,
-            "generator_version": "1.0"
-        }
-        
-        return patient_profile
-    
-    def _validate_filters(self, filters):
-        """
-        Validate and standardize patient generation filters
-        
-        Args:
-            filters (dict): Raw filters
-            
-        Returns:
-            dict: Validated filters
-        """
-        validated = {
-            "age_range": filters.get("age_range", [18, 80]),
-            "gender": filters.get("gender", ["male", "female"]),
-            "ethnicity": filters.get("ethnicity", ["white", "black", "hispanic", "asian"]),
-            "conditions": filters.get("conditions", []),
-            "exclusion_conditions": filters.get("exclusion_conditions", []),
-            "medications": filters.get("medications", []),
-            "exclusion_medications": filters.get("exclusion_medications", [])
-        }
-        
-        # Validate age range
-        if not isinstance(validated["age_range"], (list, tuple)) or len(validated["age_range"]) != 2:
-            validated["age_range"] = [18, 80]
-        
-        # Ensure minimum age range
-        if validated["age_range"][1] - validated["age_range"][0] < 1:
-            validated["age_range"] = [18, 80]
-        
-        # Validate gender options
-        valid_genders = ["male", "female", "other"]
-        validated["gender"] = [g for g in validated["gender"] if g.lower() in valid_genders]
-        if not validated["gender"]:
-            validated["gender"] = ["male", "female"]
-        
-        return validated
-    
-    def _flatten_for_csv(self, patient):
-        """
-        Flatten nested patient data for CSV output
-        
-        Args:
-            patient (dict): Patient profile
-            
-        Returns:
-            dict: Flattened patient data
-        """
-        flattened = {}
-        
-        # Basic demographics
-        demographics = patient.get("demographics", {})
-        flattened.update({
-            "age": demographics.get("age"),
-            "gender": demographics.get("gender"),
-            "ethnicity": demographics.get("ethnicity"),
-            "weight_kg": demographics.get("weight"),
-            "height_cm": demographics.get("height"),
-            "bmi": demographics.get("BMI")
+def generate_patients(criteria, n=50, seed=None):
+    """
+    Generate n synthetic patients that satisfy 'criteria'.
+    criteria dict may contain age_min, age_max, biomarkers (list), exclusions list.
+    This function produces diverse patients by varying demographics and labs.
+    """
+    rng = np.random.RandomState(seed or 0)
+
+    age_min = criteria.get("age_min", 18)
+    age_max = criteria.get("age_max", 65)
+    biomarkers = criteria.get("biomarkers", [])
+
+    rows = []
+    for i in range(n):
+        # age: sample uniformly but with some normal jitter
+        age = int(rng.choice(range(age_min, age_max+1)))
+        sex = rng.choice(['Male','Female'], p=[0.48, 0.52])
+        # EBV handling: if criteria requires EBV negative, force it; else sample with typical adult prevalence
+        if 'EBV' in biomarkers:
+            # if biomarker listed, assume they want negative (we let PI decide)
+            EBV_status = rng.choice(['negative','positive'], p=[0.8,0.2])
+        else:
+            EBV_status = rng.choice(['negative','positive'], p=[0.05,0.95])
+
+        # comorbidity count increases with age
+        comorbidity_prob = min(0.6, (age - 20) / 100.0)
+        comorbidity_count = rng.binomial(3, comorbidity_prob)
+
+        # generate two lab values correlated with age
+        lab1 = round(rng.normal(loc=100 + (age-50)*0.5, scale=10), 1)
+        lab2 = round(rng.normal(loc=7 + (comorbidity_count*0.5), scale=1.0), 2)
+
+        rows.append({
+            "patient_id": f"P{i+1:04d}",
+            "age": age,
+            "sex": sex,
+            "EBV_status": EBV_status,
+            "comorbidity_count": int(comorbidity_count),
+            "lab1": lab1,
+            "lab2": lab2
         })
-        
-        # Medical history
-        medical_history = patient.get("medical_history", {})
-        flattened["conditions"] = "; ".join(medical_history.get("conditions", []))
-        
-        # Medications
-        medications = patient.get("current_medications", [])
-        flattened["medications"] = "; ".join([f"{med.get('name')} {med.get('dosage', '')}" for med in medications])
-        
-        # Vital signs
-        vitals = patient.get("vital_signs", {})
-        flattened.update({
-            "blood_pressure": vitals.get("blood_pressure"),
-            "heart_rate": vitals.get("heart_rate"),
-            "temperature": vitals.get("temperature"),
-            "respiratory_rate": vitals.get("respiratory_rate")
-        })
-        
-        # Contact info
-        contact = patient.get("contact_info", {})
-        flattened.update({
-            "first_name": contact.get("first_name"),
-            "last_name": contact.get("last_name"),
-            "email": contact.get("email"),
-            "phone": contact.get("phone"),
-            "address": contact.get("address")
-        })
-        
-        return flattened
-    
-    def generate_cohort_statistics(self, patients):
-        """
-        Generate statistical summary of patient cohort
-        
-        Args:
-            patients (list): List of patient profiles
-            
-        Returns:
-            dict: Cohort statistics
-        """
-        if not patients:
-            return {"error": "No patients provided"}
-        
-        stats = {
-            "total_patients": len(patients),
-            "demographics": self._analyze_demographics(patients),
-            "medical_conditions": self._analyze_conditions(patients),
-            "medications": self._analyze_medications(patients)
-        }
-        
-        return stats
-    
-    def _analyze_demographics(self, patients):
-        """Analyze demographic distribution in patient cohort"""
-        ages = []
-        genders = {}
-        ethnicities = {}
-        
-        for patient in patients:
-            demographics = patient.get("demographics", {})
-            
-            # Age analysis
-            age = demographics.get("age")
-            if age:
-                ages.append(age)
-            
-            # Gender distribution
-            gender = demographics.get("gender")
-            if gender:
-                genders[gender] = genders.get(gender, 0) + 1
-            
-            # Ethnicity distribution
-            ethnicity = demographics.get("ethnicity")
-            if ethnicity:
-                ethnicities[ethnicity] = ethnicities.get(ethnicity, 0) + 1
-        
-        return {
-            "age_stats": {
-                "mean": sum(ages) / len(ages) if ages else 0,
-                "min": min(ages) if ages else 0,
-                "max": max(ages) if ages else 0
-            },
-            "gender_distribution": genders,
-            "ethnicity_distribution": ethnicities
-        }
-    
-    def _analyze_conditions(self, patients):
-        """Analyze medical conditions distribution"""
-        conditions = {}
-        
-        for patient in patients:
-            medical_history = patient.get("medical_history", {})
-            patient_conditions = medical_history.get("conditions", [])
-            
-            for condition in patient_conditions:
-                conditions[condition] = conditions.get(condition, 0) + 1
-        
-        return conditions
-    
-    def _analyze_medications(self, patients):
-        """Analyze medication distribution"""
-        medications = {}
-        
-        for patient in patients:
-            patient_medications = patient.get("current_medications", [])
-            
-            for med in patient_medications:
-                med_name = med.get("name") if isinstance(med, dict) else str(med)
-                medications[med_name] = medications.get(med_name, 0) + 1
-        
-        return medications
-    
-    def _get_timestamp(self):
-        """Get current timestamp"""
-        from datetime import datetime
-        return datetime.now().isoformat()
+
+    df = pd.DataFrame(rows)
+
+    # If biomarker required to be negative, filter and if insufficient, oversample / replace
+    if 'EBV' in biomarkers:
+        # here we interpret as requiring EBV negative patients; keep only negative
+        df = df[df['EBV_status']=='negative']
+        if len(df) < n:
+            # generate additional samples forcefully
+            needed = n - len(df)
+            extra = []
+            for j in range(needed):
+                age = int(rng.choice(range(age_min, age_max+1)))
+                sex = rng.choice(['Male','Female'], p=[0.48,0.52])
+                comorbidity_prob = min(0.6, (age - 20) / 100.0)
+                comorbidity_count = rng.binomial(3, comorbidity_prob)
+                lab1 = round(rng.normal(loc=100 + (age-50)*0.5, scale=10), 1)
+                lab2 = round(rng.normal(loc=7 + (comorbidity_count*0.5), scale=1.0), 2)
+                extra.append({
+                    "patient_id": f"P_extra{j+1:03d}",
+                    "age": age,
+                    "sex": sex,
+                    "EBV_status": 'negative',
+                    "comorbidity_count": int(comorbidity_count),
+                    "lab1": lab1,
+                    "lab2": lab2
+                })
+            df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
+
+    # Ensure exactly n rows
+    if len(df) > n:
+        df = df.sample(n=n, random_state=rng)
+    df = df.reset_index(drop=True)
+    return df
