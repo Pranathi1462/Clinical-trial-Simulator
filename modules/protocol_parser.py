@@ -1,101 +1,69 @@
-import json
-from utils.groq_client import GroqClient
+# modules/protocol_parser.py
+import re
 
-class ProtocolParser:
-    def __init__(self):
-        self.groq_client = GroqClient()
-    
-    def parse_protocol(self, protocol_text):
-        """
-        Parse clinical trial protocol text and extract key information with optimization suggestions
-        
-        Args:
-            protocol_text (str): Raw clinical trial protocol text
-            
-        Returns:
-            dict: Contains extracted information and optimization suggestions
-        """
-        if not protocol_text or not protocol_text.strip():
-            raise ValueError("Protocol text cannot be empty")
-        
-        try:
-            # Extract key information
-            extracted_info = self.groq_client.extract_protocol_info(protocol_text)
-            
-            # Get optimization suggestions
-            optimizations = self.groq_client.suggest_optimizations(protocol_text)
-            
-            return {
-                "extracted_info": extracted_info,
-                "optimizations": optimizations,
-                "status": "success",
-                "text_length": len(protocol_text),
-                "processing_timestamp": self._get_timestamp()
-            }
-        
-        except Exception as e:
-            raise Exception(f"Failed to parse protocol: {str(e)}")
-    
-    def validate_protocol_structure(self, protocol_text):
-        """
-        Validate that protocol text contains essential sections
-        
-        Args:
-            protocol_text (str): Protocol text to validate
-            
-        Returns:
-            dict: Validation results
-        """
-        essential_sections = [
-            "objective", "endpoint", "inclusion", "exclusion", 
-            "design", "population", "intervention", "safety"
-        ]
-        
-        found_sections = []
-        missing_sections = []
-        
-        for section in essential_sections:
-            if any(keyword in protocol_text.lower() for keyword in [section, section.replace("_", " ")]):
-                found_sections.append(section)
-            else:
-                missing_sections.append(section)
-        
-        return {
-            "is_valid": len(missing_sections) <= 2,  # Allow up to 2 missing sections
-            "found_sections": found_sections,
-            "missing_sections": missing_sections,
-            "completeness_score": len(found_sections) / len(essential_sections)
-        }
-    
-    def extract_study_phases(self, protocol_text):
-        """
-        Extract and categorize study phases from protocol text
-        
-        Args:
-            protocol_text (str): Protocol text
-            
-        Returns:
-            dict: Study phase information
-        """
-        phase_keywords = {
-            "phase_1": ["phase i", "phase 1", "first-in-human", "dose escalation"],
-            "phase_2": ["phase ii", "phase 2", "proof of concept", "dose finding"],
-            "phase_3": ["phase iii", "phase 3", "pivotal", "confirmatory"],
-            "phase_4": ["phase iv", "phase 4", "post-marketing", "surveillance"]
-        }
-        
-        detected_phases = []
-        for phase, keywords in phase_keywords.items():
-            if any(keyword in protocol_text.lower() for keyword in keywords):
-                detected_phases.append(phase)
-        
-        return {
-            "detected_phases": detected_phases,
-            "primary_phase": detected_phases[0] if detected_phases else "unknown",
-            "is_multi_phase": len(detected_phases) > 1
-        }
-    
-    def _get_timestamp(self):
-        """Get current timestamp for processing records"""
-        from datetime import datetime
-        return datetime.now().isoformat()
+def parse_protocol(text):
+    """
+    Very lightweight parser that extracts:
+    - indication (first line or title)
+    - age_min, age_max
+    - sample_size (n=)
+    - mentions of EBV or other biomarkers (simple keyword search)
+    - list of exclusion mentions
+    Returns a dict.
+    """
+    if not text:
+        return {}
+
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    indication = lines[0] if lines else "Unknown indication"
+
+    # Age extraction
+    age_min, age_max = None, None
+    age_match = re.search(r'age\s*(?:between|:)?\s*(\d{1,3})\s*(?:and|-|to)\s*(\d{1,3})', text, re.IGNORECASE)
+    if age_match:
+        age_min = int(age_match.group(1))
+        age_max = int(age_match.group(2))
+    else:
+        # look for simple "18+" patterns
+        m = re.search(r'(\d{1,3})\s*\+', text)
+        if m:
+            age_min = int(m.group(1))
+            age_max = 99
+
+    # sample size
+    sample_size = None
+    m = re.search(r'\b[nN]\s*=\s*(\d{2,6})', text)
+    if m:
+        sample_size = int(m.group(1))
+    else:
+        m2 = re.search(r'sample size[:\s]+(\d{2,6})', text, re.IGNORECASE)
+        if m2:
+            sample_size = int(m2.group(1))
+
+    # biomarkers / keywords
+    biomarkers = []
+    if re.search(r'\bEBV\b', text, re.IGNORECASE):
+        biomarkers.append('EBV')
+    if re.search(r'\bJC virus\b', text, re.IGNORECASE) or re.search(r'JCV\b', text, re.IGNORECASE):
+        biomarkers.append('JCV')
+    # add more as needed
+
+    # Extract lines that look like exclusions (very naive)
+    exclusions = []
+    for ln in lines:
+        if ln.lower().startswith('exclusion') or ln.lower().startswith('exclusion criteria') or 'exclude' in ln.lower():
+            exclusions.append(ln)
+
+    # If none found, look for sentences with 'no prior' or 'without'
+    for sent in re.split(r'[.;]\s*', text):
+        if 'no prior' in sent.lower() or 'without' in sent.lower() or 'exclude' in sent.lower():
+            exclusions.append(sent.strip())
+
+    return {
+        "indication": indication,
+        "age_min": age_min,
+        "age_max": age_max,
+        "sample_size": sample_size,
+        "biomarkers": biomarkers,
+        "exclusions": exclusions
+    }
