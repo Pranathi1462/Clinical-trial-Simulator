@@ -2,9 +2,9 @@
 import streamlit as st
 import pandas as pd
 from modules.protocol_parser import parse_protocol
-from modules.optimizer import optimize_protocol
 from modules.eligibility_extractor import struct_to_form
 from modules.patient_generator import generate_patients
+from modules.protocol_optimizer import optimize_protocol
 
 st.set_page_config(page_title="Protocol + Synthetic Patient Prototype", layout="wide")
 
