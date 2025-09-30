@@ -1,18 +1,20 @@
-# AISimulator
+# Clinical Trial Simulator (AISimulator)
 
 ## Overview
-AISimulator is a prototype for clinical trial simulation, including:
-- Synthetic patient generation
-- Eligibility criteria extraction
-- Protocol parsing
-- Testing virtual drug models
+This project is a prototype for simulating clinical trials:
+- Generate synthetic patients
+- Extract eligibility criteria
+- Parse trial protocols
+- Test virtual drug models
 
-This is designed for research purposes and can help plan trials more efficiently.
+## Run on Streamlit Cloud
+1. Deploy the repo on [Streamlit Cloud](https://streamlit.io/cloud)
+2. Main file path: `AISimulator/app.py`
 
-## Running the App on Streamlit Cloud
-1. Go to the deployed Streamlit URL: [Your Streamlit URL]
-2. Use the app interface to generate synthetic patients and simulate protocols.
+## Requirements
+- Python 3.8+
+- Packages: streamlit, pandas, numpy, scikit-learn, openai, torch, transformers
 
-## Running Locally (Optional)
-1. Install Python 3.8+ from [python.org](https://www.python.org/downloads/)
-2. Install required packages:
+## Notes
+- Prototype for research only
+- Does not replace human trial participants
