@@ -1,9 +1,9 @@
 import json
-from utils.openai_client import OpenAIClient
+from utils.groq_client import GroqClient
 
 class ProtocolParser:
     def __init__(self):
-        self.openai_client = OpenAIClient()
+        self.groq_client = GroqClient()
     
     def parse_protocol(self, protocol_text):
         """
@@ -20,10 +20,10 @@ class ProtocolParser:
         
         try:
             # Extract key information
-            extracted_info = self.openai_client.extract_protocol_info(protocol_text)
+            extracted_info = self.groq_client.extract_protocol_info(protocol_text)
             
             # Get optimization suggestions
-            optimizations = self.openai_client.suggest_optimizations(protocol_text)
+            optimizations = self.groq_client.suggest_optimizations(protocol_text)
             
             return {
                 "extracted_info": extracted_info,

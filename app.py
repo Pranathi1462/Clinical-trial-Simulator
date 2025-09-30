@@ -23,7 +23,7 @@ def main():
     api_key = st.text_input("Enter OpenAI API Key:", type="password", key="openai_key")
     if api_key:
         import os
-        os.environ["OPENAI_API_KEY"] = api_key
+        os.environ["GROQ_API_KEY"] = api_key
         st.session_state.api_key_set = True
         st.success("API Key set successfully!")
     

@@ -1,11 +1,11 @@
 import json
 import random
-from utils.openai_client import OpenAIClient
+from utils.groq_client import GroqClient
 from modules.synthea_schema import SyntheaSchema
 
 class PatientGenerator:
     def __init__(self):
-        self.openai_client = OpenAIClient()
+        self.groq_client = GroqClient()
         self.synthea_schema = SyntheaSchema()
     
     def generate_patients(self, count, filters, output_format="json"):
@@ -64,7 +64,7 @@ class PatientGenerator:
         validated_filters = self._validate_filters(filters)
         
         # Generate patient using OpenAI
-        patient_profile = self.openai_client.generate_patient_profile(validated_filters)
+        patient_profile = self.groq_client.generate_patient_profile(validated_filters)
         
         # Add generation metadata
         patient_profile["generation_metadata"] = {

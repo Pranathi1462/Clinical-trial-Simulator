@@ -1,10 +1,10 @@
 import re
 import json
-from utils.openai_client import OpenAIClient
+from utils.groq_client import GroqClient
 
 class EligibilityExtractor:
     def __init__(self):
-        self.openai_client = OpenAIClient()
+        self.groq_client = GroqClient()
     
     def extract_criteria(self, protocol_text):
         """
@@ -21,7 +21,7 @@ class EligibilityExtractor:
         
         try:
             # Use AI to extract structured criteria
-            ai_extracted = self.openai_client.extract_eligibility_criteria(protocol_text)
+            ai_extracted = self.groq_client.extract_eligibility_criteria(protocol_text)
             
             # Apply rule-based validation and enhancement
             enhanced_criteria = self._enhance_with_rules(protocol_text, ai_extracted)
