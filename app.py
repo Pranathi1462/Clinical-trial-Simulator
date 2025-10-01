@@ -4,7 +4,7 @@ import pandas as pd
 from modules.protocol_parser import parse_protocol
 from modules.eligibility_extractor import struct_to_form
 from modules.patient_generator import generate_patients
-from modules.protocol_optimizer import optimize_protocol
+from modules.protocol_optimizer import generate_full_protocol
 
 st.set_page_config(page_title="Protocol + Synthetic Patient Prototype", layout="wide")
 
@@ -23,18 +23,23 @@ Primary endpoint: Time to first clinical relapse over 12 months.
 # 1) Input protocol
 protocol_text = st.text_area("Protocol text", height=180)
 
-if st.button("Parse protocol"):
-    parsed = parse_protocol(protocol_text)
-    st.session_state['parsed'] = parsed
-    st.write("Parsed:")
-    st.json(parsed)
+if st.button("Generate full protocol drafts"):
+    try:
+        drafts = generate_full_protocol(protocol_text, n_options=3, include_references=True)
+        st.session_state['drafts'] = drafts
+        st.success(f"Generated {len(drafts)} protocol drafts")
+        for i, d in enumerate(drafts):
+            st.subheader(f"Draft {i+1}")
+            st.json(d)
+    except Exception as e:
+        st.error(f"Failed to generate protocols: {e}")
 
 # 2) Optimize
-if 'parsed' in st.session_state:
-    parsed = st.session_state['parsed']
-    if st.button("Optimize and propose 3 protocols"):
-        proposals = optimize_protocol(parsed, pool_size=18, pick_k=3)
-        st.session_state['proposals'] = proposals
+if 'drafts' in st.session_state and st.button("Optimize Groq-generated protocols"):
+    proposals = []
+    for draft in st.session_state['drafts']:
+        proposals.extend(optimize_protocol(draft, pool_size=18, pick_k=1))
+    st.session_state['proposals'] = proposals
 
 # Show proposals
 if 'proposals' in st.session_state:
