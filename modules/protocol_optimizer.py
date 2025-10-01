@@ -1,4 +1,4 @@
-# modules/protocol_designer.py
+# modules/protocol_optimizer.py
 """
 Protocol Designer / Optimizer module
 - generate_full_protocol(pi_text, n_options=1, include_references=True)
