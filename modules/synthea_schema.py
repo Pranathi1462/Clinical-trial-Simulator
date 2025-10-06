@@ -1,27 +1,28 @@
-# modules/synthea_schema.py
-
 """
-This module defines the schema (structure) for synthetic patients.
-It provides a baseline patient template that can be expanded with
-age, gender, conditions, treatments, etc.
+synthea_schema.py
+Simple helper mapping to Synthea-like patient fields for later export.
+This is a placeholder mapping — extend to match your Synthea templates.
 """
 
-# A simple patient schema dictionary
-PATIENT_SCHEMA = {
-    "id": None,                # unique patient ID
-    "age": None,               # integer (years)
-    "sex": None,               # "M" or "F"
-    "condition": None,         # primary condition (e.g., Multiple Sclerosis)
-    "inclusion_criteria": [],  # list of criteria met
-    "exclusion_criteria": [],  # list of criteria failed
-    "treatment": None,         # assigned treatment arm (if applicable)
-    "outcome": None            # placeholder for outcome simulation
-}
-
-def create_empty_patient(patient_id: int):
+def map_patient_to_synthea(patient_row: dict) -> dict:
     """
-    Create a new patient with default schema.
+    Convert a synthetic patient dict -> a minimal Synthea-like dict.
     """
-    schema = PATIENT_SCHEMA.copy()
-    schema["id"] = patient_id
-    return schema
+    return {
+        "id": patient_row.get("patient_id"),
+        "name": {
+            "first": patient_row.get("first_name"),
+            "last": patient_row.get("last_name"),
+        },
+        "demographics": {
+            "age": patient_row.get("age"),
+            "sex": patient_row.get("sex"),
+            "bmi": patient_row.get("bmi"),
+        },
+        "labs": {
+            "ANC": patient_row.get("ANC"),
+            "Platelets": patient_row.get("Platelets"),
+            "Hemoglobin": patient_row.get("Hemoglobin"),
+        },
+        "biomarkers": {k: v for k, v in patient_row.items() if k.upper().endswith("_status") or k in ["EBV_status"]},
+    }

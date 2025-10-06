@@ -1,5 +1,8 @@
 streamlit
-openai
 pandas
 numpy
-scikit-learn
+requests
+faker
+python-dotenv
+# optional: groq (only if you plan to call Groq)
+# groq
